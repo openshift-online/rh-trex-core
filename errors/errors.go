@@ -1,11 +1,14 @@
 package errors
 
 import (
+	e "errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/golang/glog"
+	"gorm.io/gorm"
 
 	"github.com/openshift-online/rh-trex/pkg/api/openapi"
 )
@@ -209,22 +212,49 @@ func DatabaseAdvisoryLock(err error) *ServiceError {
 // Standardized error handlers for common CRUD operations
 // These functions provide consistent error handling patterns across all TRex-based projects
 
-// HandleGetError creates a standardized error for GET operations
+// Field names suspected to contain personally identifiable information
+var piiFields []string = []string{
+	"username",
+	"first_name", 
+	"last_name",
+	"email",
+	"address",
+}
+
+// HandleGetError creates a standardized error for GET operations with PII sanitization
 func HandleGetError(kind, field, value string, err error) *ServiceError {
-	return NotFound("%s with %s='%s' not found", kind, field, value)
+	// Sanitize errors of any personally identifiable information
+	sanitizedValue := value
+	for _, f := range piiFields {
+		if field == f {
+			sanitizedValue = "<redacted>"
+			break
+		}
+	}
+	
+	if e.Is(err, gorm.ErrRecordNotFound) {
+		return NotFound("%s with %s='%s' not found", kind, field, sanitizedValue)
+	}
+	return GeneralError("Unable to find %s with %s='%s': %s", kind, field, sanitizedValue, err)
 }
 
-// HandleCreateError creates a standardized error for CREATE operations
+// HandleCreateError creates a standardized error for CREATE operations with constraint detection
 func HandleCreateError(kind string, err error) *ServiceError {
-	return GeneralError("Unable to create %s: %s", kind, err)
+	if strings.Contains(err.Error(), "violates unique constraint") {
+		return Conflict("This %s already exists", kind)
+	}
+	return GeneralError("Unable to create %s: %s", kind, err.Error())
 }
 
-// HandleUpdateError creates a standardized error for UPDATE operations
+// HandleUpdateError creates a standardized error for UPDATE operations with constraint detection
 func HandleUpdateError(kind string, err error) *ServiceError {
-	return GeneralError("Unable to update %s: %s", kind, err)
+	if strings.Contains(err.Error(), "violates unique constraint") {
+		return Conflict("Changes to %s conflict with existing records", kind)
+	}
+	return GeneralError("Unable to update %s: %s", kind, err.Error())
 }
 
 // HandleDeleteError creates a standardized error for DELETE operations
 func HandleDeleteError(kind string, err error) *ServiceError {
-	return GeneralError("Unable to delete %s: %s", kind, err)
+	return GeneralError("Unable to delete %s: %s", kind, err.Error())
 }
