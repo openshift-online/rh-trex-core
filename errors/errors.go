@@ -205,3 +205,26 @@ func FailedToParseSearch(reason string, values ...interface{}) *ServiceError {
 func DatabaseAdvisoryLock(err error) *ServiceError {
 	return New(ErrorDatabaseAdvisoryLock, err.Error(), []string{})
 }
+
+// Standardized error handlers for common CRUD operations
+// These functions provide consistent error handling patterns across all TRex-based projects
+
+// HandleGetError creates a standardized error for GET operations
+func HandleGetError(kind, field, value string, err error) *ServiceError {
+	return NotFound("%s with %s='%s' not found", kind, field, value)
+}
+
+// HandleCreateError creates a standardized error for CREATE operations
+func HandleCreateError(kind string, err error) *ServiceError {
+	return GeneralError("Unable to create %s: %s", kind, err)
+}
+
+// HandleUpdateError creates a standardized error for UPDATE operations
+func HandleUpdateError(kind string, err error) *ServiceError {
+	return GeneralError("Unable to update %s: %s", kind, err)
+}
+
+// HandleDeleteError creates a standardized error for DELETE operations
+func HandleDeleteError(kind string, err error) *ServiceError {
+	return GeneralError("Unable to delete %s: %s", kind, err)
+}
